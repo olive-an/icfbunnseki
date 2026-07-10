@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>課題分析シート入力</title>
+<style>
+  :root{
+    --bg:#F5F5F7;
+    --surface:#FFFFFF;
+    --ink:#241F2E;
+    --ink-soft:#655B6B;
+    --accent:#6E4F9E;
+    --accent-deep:#3E2D5C;
+    --accent-soft:#E7E1F0;
+    --line:#DEDAE2;
+    --warn:#B5502A;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif;
+    -webkit-tap-highlight-color:transparent;
+    padding-bottom:96px;
+  }
+
+  header{
+    position:sticky; top:0; z-index:20;
+    background:var(--accent-deep);
+    color:#F6F4F9;
+    padding:14px 18px 10px;
+  }
+  header h1{margin:0; font-size:19px; font-weight:700; letter-spacing:.02em;}
+  header p{margin:2px 0 10px; font-size:12.5px; color:#D3C7E4;}
+  .tabs{display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none;}
+  .tabs::-webkit-scrollbar{display:none;}
+  .tab-btn{
+    flex:0 0 auto; padding:9px 14px; border-radius:999px;
+    border:1px solid rgba(255,255,255,.25);
+    background:rgba(255,255,255,.08); color:#EFE9F5; font-size:13px; white-space:nowrap;
+  }
+  .tab-btn.active{background:#F6F4F9; color:var(--accent-deep); border-color:#F6F4F9; font-weight:700;}
+
+  main{padding:16px 14px 20px; max-width:760px; margin:0 auto;}
+  .section{display:none;}
+  .section.active{display:block; animation:fade .2s ease;}
+  @keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;}}
+
+  .card{
+    background:var(--surface); border:1px solid var(--line); border-radius:14px;
+    padding:16px 16px 14px; margin-bottom:14px;
+  }
+  .field-label{
+    font-size:13.5px; font-weight:700; color:var(--accent-deep);
+    white-space:pre-line; line-height:1.5; margin-bottom:6px;
+  }
+  input[type=text], textarea, select{
+    width:100%; border:1px solid var(--line); border-radius:10px; padding:12px 12px;
+    font-size:15.5px; font-family:inherit; color:var(--ink); background:#FDFCFE;
+    resize:vertical; line-height:1.6;
+  }
+  select{
+    -webkit-appearance:none; appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24'><path fill='%236E4F9E' d='M7 10l5 5 5-5z'/></svg>");
+    background-repeat:no-repeat; background-position:right 12px center; padding-right:34px; min-height:46px;
+  }
+  .sub-note{margin-top:8px;}
+  textarea{min-height:90px;}
+  input[type=text]:focus, textarea:focus, select:focus{
+    outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);
+  }
+  .section-title{
+    font-size:15px; font-weight:700; color:var(--accent-deep);
+    margin:4px 0 10px; padding-left:10px; border-left:5px solid var(--accent);
+  }
+  .group-title{
+    font-size:15px; font-weight:700; color:var(--accent-deep);
+    margin:18px 0 10px; padding-left:10px; border-left:5px solid var(--accent);
+  }
+
+  .navbar{
+    position:fixed; left:0; right:0; bottom:0; z-index:20;
+    background:var(--surface); border-top:1px solid var(--line);
+    padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+    display:flex; align-items:center; gap:8px;
+  }
+  .navbar .status{flex:1; font-size:12.5px; color:var(--ink-soft); line-height:1.4;}
+  .navbar .status.ok{color:var(--accent-deep); font-weight:700;}
+  .navbar .status.err{color:var(--warn); font-weight:700;}
+  button.pill{border:none; border-radius:12px; padding:13px 16px; font-size:14.5px; font-weight:700; min-height:48px;}
+  #previewBar button.pill{padding:12px 8px; font-size:13px; line-height:1.3;}
+  .btn-main{background:var(--accent); color:#fff;}
+  .btn-main:active{background:var(--accent-deep);}
+  .btn-ghost{background:var(--accent-soft); color:var(--accent-deep);}
+  .btn-print{background:#EFE7D6; color:#6B4E1A;}
+
+  #previewView{background:#fff; border-radius:14px; padding:4px 0 20px;}
+  .preview-group{
+    font-size:15px; font-weight:700; color:var(--accent-deep);
+    margin:18px 0 10px; padding-left:10px; border-left:5px solid var(--accent);
+  }
+  .preview-item{
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:12px 14px; margin-bottom:10px;
+  }
+  .preview-item .p-label{font-size:13px; font-weight:700; color:var(--accent-deep); white-space:pre-line; margin-bottom:4px;}
+  .preview-item .p-value{font-size:14.5px; white-space:pre-line; line-height:1.6; color:var(--ink);}
+  .preview-item .p-value.empty{color:var(--ink-soft); font-style:italic;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>課題分析シート入力</h1>
+  <p>とちぎ版・課題分析のための情報収集シート／タップして入力 → 保存でスプレッドシートへ記録</p>
+  <div class="tabs" id="tabs"></div>
+</header>
+
+<main>
+  <div id="inputRoot">
+
+    <div class="card">
+      <div class="field-label">ホーム</div>
+      <select id="a_home"><option value="">選択してください</option></select>
+    </div>
+    <div class="card">
+      <div class="field-label">氏名</div>
+      <select id="a_name"><option value="">先にホームを選択してください</option></select>
+    </div>
+    <div class="card">
+      <div class="field-label">区分</div>
+      <select id="a_category">
+        <option value="">選択してください</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+      </select>
+    </div>
+
+    <!-- 基本情報（課題分析シート） -->
+    <div class="section active" data-section="0">
+      <div class="section-title">基本情報（課題分析シート）</div>
+      <div id="basic2Container"></div>
+    </div>
+
+    <!-- 生活課題分析23項目 -->
+    <div class="section" data-section="1">
+      <div class="section-title">生活課題分析（23項目）</div>
+      <div id="lifeContainer"></div>
+    </div>
+  </div>
+
+  <!-- 内容確認ビュー -->
+  <div id="previewView" style="display:none;">
+    <div id="previewBar" style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
+      <button class="pill btn-ghost" onclick="closePreview()" style="width:100%;">入力に戻る</button>
+      <button class="pill btn-print" onclick="exportExcel()" style="width:100%;">Excel出力</button>
+    </div>
+    <div id="previewContent"></div>
+  </div>
+</main>
+
+<div class="navbar">
+  <div class="status" id="status">未保存</div>
+  <button class="pill btn-print" onclick="showPreview()">内容確認</button>
+  <button class="pill btn-main" onclick="saveData()">保存</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script>
+// ここに発行されたGAS Web AppのURLを直接書き込んでおくと、毎回貼らずに済みます
+// ICF入力アプリと同じURLを指定してください
+const CONFIG = {
+  WEBAPP_URL: "https://script.google.com/macros/s/AKfycbwiDr1rX948ZM0WT6wrfkhfNUlf_Sn8K2tCPZiwdxvLr1SBNDQgj8jbn0LdARIIPm0/exec"
+};
+
+const sectionNames = ["基本情報","生活課題分析"];
+const tabsEl = document.getElementById('tabs');
+sectionNames.forEach((name, i) => {
+  const b = document.createElement('button');
+  b.className = 'tab-btn' + (i===0 ? ' active' : '');
+  b.textContent = name;
+  b.onclick = () => showSection(i);
+  tabsEl.appendChild(b);
+});
+
+function showSection(i){
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelector(`.section[data-section="${i}"]`).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach((b, idx) => b.classList.toggle('active', idx===i));
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+/* ===================== 利用者データ（ホーム別） ===================== */
+const HOME_RESIDENTS = {
+  '西九条': [
+    {name:'加藤　和敏', category:'5'},
+    {name:'西田　真也', category:'6'},
+    {name:'塩澤　誠', category:'4'},
+    {name:'伊藤　剛士', category:'5'}
+  ],
+  '九条': [
+    {name:'風呂谷　祐寿', category:'5'},
+    {name:'平戸　秀男', category:'5'},
+    {name:'宮澤　成欣', category:'4'},
+    {name:'東井　勝', category:'4'},
+    {name:'佐田　浩司', category:'4'}
+  ],
+  '酉島': [
+    {name:'瀬戸　友紀恵', category:'4'},
+    {name:'島也結衣', category:'4'},
+    {name:'笹井　史子', category:'4'},
+    {name:'佐藤　拓樹', category:'3'},
+    {name:'内海浩二', category:'4'}
+  ],
+  '新郡山': [
+    {name:'西口　岐寛', category:'4'},
+    {name:'新宅　顕', category:'4'},
+    {name:'小西　直人', category:'5'},
+    {name:'古谷　翔', category:'5'}
+  ],
+  '春日出': [
+    {name:'飯塚巧大', category:'6'},
+    {name:'松下栄男', category:'4'},
+    {name:'永野隆治', category:'4'},
+    {name:'松山智明', category:'3'},
+    {name:'山田　美佳', category:'6'}
+  ],
+  '出来島': [
+    {name:'森田　拓夢', category:'6'},
+    {name:'池田　千秋', category:'3'},
+    {name:'後藤　高行', category:'3'},
+    {name:'梶原さやか', category:'6'}
+  ]
+};
+
+(function initHomeSelect(){
+  const homeEl = document.getElementById('a_home');
+  Object.keys(HOME_RESIDENTS).forEach(home => {
+    const opt = document.createElement('option');
+    opt.value = home;
+    opt.textContent = home;
+    homeEl.appendChild(opt);
+  });
+  homeEl.addEventListener('change', updateNameOptions);
+})();
+
+function updateNameOptions(){
+  const home = document.getElementById('a_home').value;
+  const nameEl = document.getElementById('a_name');
+  nameEl.innerHTML = '';
+  if(!home){
+    nameEl.innerHTML = '<option value="">先にホームを選択してください</option>';
+    clearAllAssessmentFields();
+    return;
+  }
+  nameEl.innerHTML = '<option value="">選択してください</option>';
+  HOME_RESIDENTS[home].forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r.name;
+    opt.textContent = r.name;
+    opt.dataset.category = r.category;
+    nameEl.appendChild(opt);
+  });
+  clearAllAssessmentFields();
+}
+
+document.getElementById('a_name').addEventListener('change', function(){
+  const selected = this.options[this.selectedIndex];
+  const category = selected ? selected.dataset.category : '';
+  if(category){
+    document.getElementById('a_category').value = category;
+  }
+  loadAssessmentData(this.value);
+});
+
+/* ===================== 課題分析シート（とちぎ版）データ定義 ===================== */
+
+const BASIC2_FIELDS = [
+  {id:'b_uketsuke_date', label:'受付年月日', type:'text'},
+  {id:'b_uketsuke_taiou', label:'受付対応者', type:'text'},
+  {id:'b_uketsuke_method', label:'受付方法', type:'select', options:['電話','来所','その他']},
+  {id:'b_name_info', label:'氏名・性別・年齢／住所・電話番号', type:'textarea'},
+  {id:'b_family_status', label:'家族状況（ジェノグラム等の概要）', type:'textarea'},
+  {id:'b_family_basic', label:'家族等の基本情報（氏名・年齢・住所・電話）', type:'textarea'},
+  {id:'b_care_plan_status', label:'居宅サービス計画作成の状況', type:'select', options:['初回','初回以外']},
+  {id:'b_life_history', label:'これまでの生活と現在の生活状況', type:'textarea'},
+  {id:'b_social_security', label:'利用者の社会保障制度の利用状況', type:'textarea'},
+  {id:'b_current_support', label:'現在利用している支援や社会資源の状況', type:'textarea'},
+  {id:'b_adl_disability', label:'日常生活自立度（障害）', type:'select', options:['自立','J1','J2','A1','A2','B1','B2','C1','C2']},
+  {id:'b_adl_dementia', label:'日常生活自立度（認知症）', type:'select', options:['自立','Ⅰ','Ⅱa','Ⅱb','Ⅲa','Ⅲb','Ⅳ','M']},
+  {id:'b_chief_intent', label:'主訴・意向（本人・家族）', type:'textarea'},
+  {id:'b_certification', label:'認定情報（要介護度・審査会意見・区分支給限度額・認定期間）', type:'textarea'},
+  {id:'b_assessment_reason', label:'今回のアセスメントの理由', type:'textarea'}
+];
+
+const LIFE_GROUPS = [
+  {title:'本人の持つ強さ（ICFシートの個人因子へ）', items:[
+    {id:'l_strength', label:'願望・希望／能力・特技／自信／自己効力感／経験や実績', type:'textarea'}
+  ]},
+  {title:'環境の力（環境因子へ）', items:[
+    {id:'l_env_power', label:'地域サービス等資源／人的な資源／人的つながり／集まり等参加する機会', type:'textarea'}
+  ]},
+  {title:'健康状態（ICFシートの健康状態へ）', items:[
+    {id:'l_health_basic', label:'身長・体重・BMI・血圧・既往歴・主傷病・症状・痛みの有無等', type:'textarea'},
+    {id:'l_pressure_now', label:'現在褥瘡はあるか', type:'select', options:['なし','あり']},
+    {id:'l_pressure_past', label:'過去に褥瘡があったことはあるか', type:'select', options:['なし','あり']},
+    {id:'l_bath_limit', label:'入浴制限の有無', type:'select', options:['なし','あり']},
+    {id:'l_physical_symptom', label:'身体症状', type:'textarea'},
+    {id:'l_mental_symptom', label:'精神症状', type:'textarea'},
+    {id:'l_pain', label:'痛み等', type:'textarea'},
+    {id:'l_condition_change', label:'体調の変化', type:'textarea'},
+    {id:'l_medical_visit', label:'受診に関する状況（かかりつけ医・歯科医・その他受診先・同行者等）', type:'textarea'},
+    {id:'l_medication_status', label:'服薬に関する状況（かかりつけ薬局・服薬実施状況・本人の理解等）', type:'textarea'},
+    {id:'l_medication_list', label:'服薬している薬の種類等（薬名・朝昼夜就寝前・備考）', type:'textarea'}
+  ]},
+  {title:'ＡＤＬ（ICFシートの活動欄へ）', items:[
+    {id:'l_adl_meal', label:'食事', type:'select', options:['自立','部分介助','全介助'], hasText:true},
+    {id:'l_adl_transfer', label:'車いすからベッド移乗', type:'select', options:['自立','一部介助（ほぼ自分で可能）','一部介助（起居はできるが移乗は介助）','全介助'], hasText:true},
+    {id:'l_adl_grooming', label:'整容', type:'select', options:['自立','部分介助・不可能'], hasText:true},
+    {id:'l_adl_toilet', label:'トイレ動作', type:'select', options:['自立','一部介助','全介助'], hasText:true},
+    {id:'l_adl_urine', label:'排尿', type:'select', options:['失禁なし','時々失禁あり','全介助（常に失禁）'], hasText:true},
+    {id:'l_adl_stool', label:'排便', type:'select', options:['失禁なし','時々失禁あり','全介助（常に便失禁）'], hasText:true},
+    {id:'l_adl_bath', label:'入浴', type:'select', options:['自立','一部介助','全介助'], hasText:true},
+    {id:'l_adl_roll', label:'寝返り', type:'select', options:['つかまらないでできる','何かにつかまればできる','できない'], hasText:true},
+    {id:'l_adl_rise', label:'起き上がり', type:'select', options:['つかまらないでできる','何かにつかまればできる','できない'], hasText:true},
+    {id:'l_adl_stand', label:'立位保持', type:'select', options:['つかまらないでできる','何かにつかまればできる','できない'], hasText:true},
+    {id:'l_adl_standup', label:'立ち上り', type:'select', options:['つかまらないでできる','何かにつかまればできる','できない'], hasText:true},
+    {id:'l_adl_walk', label:'歩行', type:'select', options:['介助なし（45m以上）','見守り・若干介助で45m以上','全介助'], hasText:true},
+    {id:'l_adl_stairs', label:'階段昇降', type:'select', options:['介助なし','見守り・わずかな介助','できない'], hasText:true},
+    {id:'l_adl_dressing', label:'更衣', type:'select', options:['自立','部分的な介助','全介助'], hasText:true}
+  ]},
+  {title:'ＩＡＤＬ（ICFシートの活動欄へ）', items:[
+    {id:'l_iadl_house', label:'家事全般（掃除・洗濯・整頓等）', type:'select', options:['できている','一部助言・介助を要する','できない'], hasText:true},
+    {id:'l_iadl_money', label:'金銭管理', type:'select', options:['できる','一部助言・介助を要する','できない'], hasText:true},
+    {id:'l_iadl_shopping', label:'買い物', type:'select', options:['できる','一部助言・介助で可能','できない'], hasText:true},
+    {id:'l_iadl_transport', label:'交通手段の利用', type:'select', options:['自ら利用できる','一部助言・介助で利用可能','自ら利用できない'], hasText:true},
+    {id:'l_iadl_medication', label:'服薬', type:'select', options:['管理・服薬できる','一部介助を要する','できない'], hasText:true},
+    {id:'l_iadl_cooking', label:'調理', type:'select', options:['家族等が調理','自立','一部介助','全て介助'], hasText:true},
+    {id:'l_iadl_driving', label:'車の運転', type:'select', options:['している','していない']},
+    {id:'l_iadl_phone', label:'電話の使用', type:'select', options:['できる（携帯電話）','できる（固定電話）','できない'], hasText:true}
+  ]},
+  {title:'認知機能や判断能力（ICFシートの心身機能欄へ）', items:[
+    {id:'l_cog_impair', label:'認知障害の有無', type:'select', options:['なし','あり（診断あり）','あり（診断なし）'], hasText:true},
+    {id:'l_cog_bpsd', label:'認知症の診断がある場合の中核症状及び行動・心理症状の状況', type:'textarea'},
+    {id:'l_cog_decision', label:'意思決定について', type:'select', options:['できる','特別な状況以外はできる','できない']},
+    {id:'l_cog_response', label:'指示反応', type:'select', options:['通じる','時々通じる','通じない']}
+  ]},
+  {title:'コミュニケーションにおける理解と表出の状況（ICFシートの心身機能欄へ）', items:[
+    {id:'l_comm_vision', label:'視力', type:'select', options:['問題なし','大きな文字は可能','ほとんど見えない','見えない']},
+    {id:'l_comm_hearing', label:'聴力', type:'select', options:['問題なし','大きな声なら可','ほとんど聞こえない','聞こえない']},
+    {id:'l_comm_talk', label:'会話', type:'select', options:['特に問題なし','不明瞭だができる','やや不自由','全くできない']},
+    {id:'l_comm_express', label:'意思疎通（要求・意見等を相手に伝える）', type:'select', options:['可能','若干困難','できない'], hasText:true},
+    {id:'l_comm_understand', label:'意思疎通（相手の言うことを理解する）', type:'select', options:['理解できる','若干困難','理解できない']},
+    {id:'l_comm_other', label:'対面以外のコミュニケーション方法（電話・PC・スマートフォン等）', type:'textarea'}
+  ]},
+  {title:'社会との関わり（ICFシートの参加欄へ）', items:[
+    {id:'l_social_family', label:'家族（等）とのかかわり（家庭内での役割・かかわりの状況）', type:'textarea'},
+    {id:'l_social_community', label:'地域とのかかわり（参加意欲・現在の役割・参加している活動）', type:'textarea'}
+  ]},
+  {title:'排泄の状況（ICFシートの心身機能欄へ）', items:[
+    {id:'l_excretion', label:'尿意・便意／尿失禁・便失禁のコントロール状況／おむつ・尿カテーテルの使用／排泄のリズム', type:'textarea'}
+  ]},
+  {title:'清潔の保持に関する状況（ICFシートの健康状態欄へ）', items:[
+    {id:'l_cleanliness', label:'入浴の状況／皮膚・爪・寝具・衣服の状況／皮膚のケアの必要性', type:'textarea'}
+  ]},
+  {title:'口腔内の状況（ICFシートの健康状態欄へ）', items:[
+    {id:'l_oral', label:'歯の状態（欠損・本数・かみ合わせ）／義歯の有無と状態／口腔内の状態', type:'textarea'}
+  ]},
+  {title:'食事摂取の状況（ICFシートの心身機能欄へ）', items:[
+    {id:'l_meal_intake', label:'食事の準備をする人／必要な食事量・栄養・水分量／食事動作の評価／嚥下状態／食事形態', type:'textarea'}
+  ]},
+  {title:'生活リズム（ICFシートの個人因子、環境因子へ）', items:[
+    {id:'l_life_rhythm', label:'1日及び1週間の生活リズム・過ごし方／日常的な活動の程度／休息・睡眠の状況', type:'textarea'}
+  ]},
+  {title:'家族等の状況（ICFシートの環境因子へ）', items:[
+    {id:'l_family_status2', label:'本人の日常生活・意思決定に関わる家族等の状況（介護者の有無・関係・情報共有方法・介護意思等）', type:'textarea'}
+  ]},
+  {title:'居住環境（ICFシートの環境因子へ）', items:[
+    {id:'l_living_env', label:'危険個所（照明・床・浴室・トイレ・台所・空調・玄関・導線・室温等）／住宅改修の必要性', type:'textarea'}
+  ]},
+  {title:'その他留意すべき事項（ターミナル以外はICFシートの環境因子欄へ）', items:[
+    {id:'l_other_notice', label:'虐待の兆候／経済的困窮／身寄りの有無／外国人／医療依存度／ターミナルケア／寝たきり独居／成年後見人等', type:'textarea'}
+  ]},
+  {title:'その他／参考事項', items:[
+    {id:'l_other_ref', label:'その他、尊厳の保持、自立につながる事柄', type:'textarea'}
+  ]}
+];
+
+function renderField(f){
+  let html = '<div class="card"><div class="field-label">' + f.label + '</div>';
+  if(f.type === 'select'){
+    html += '<select id="' + f.id + '"><option value="">選択してください</option>';
+    f.options.forEach(o => html += '<option value="' + o + '">' + o + '</option>');
+    html += '</select>';
+    if(f.hasText){
+      html += '<textarea class="sub-note" id="' + f.id + '_note" placeholder="補足・具体的な状況を入力"></textarea>';
+    }
+  } else {
+    html += '<textarea id="' + f.id + '" placeholder="入力してください"></textarea>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function renderAssessment(){
+  const basicEl = document.getElementById('basic2Container');
+  basicEl.innerHTML = BASIC2_FIELDS.map(renderField).join('');
+
+  const lifeEl = document.getElementById('lifeContainer');
+  let html = '';
+  LIFE_GROUPS.forEach(g => {
+    html += '<div class="group-title">' + g.title + '</div>';
+    html += g.items.map(renderField).join('');
+  });
+  lifeEl.innerHTML = html;
+}
+renderAssessment();
+
+function collectAssessment(){
+  const basic2 = {};
+  BASIC2_FIELDS.forEach(f => {
+    basic2[f.id] = document.getElementById(f.id).value || '';
+  });
+  const life = {};
+  LIFE_GROUPS.forEach(g => {
+    g.items.forEach(f => {
+      let v = document.getElementById(f.id).value || '';
+      if(f.hasText){
+        const note = document.getElementById(f.id + '_note').value || '';
+        if(note) v = v ? (v + ' ／ ' + note) : note;
+      }
+      life[f.id] = v;
+    });
+  });
+  return {basic2, life};
+}
+
+function buildExtraRows(){
+  const a = collectAssessment();
+  const rows = [];
+  rows.push({type:'header', text:'基本情報（課題分析シート）'});
+  BASIC2_FIELDS.forEach(f => rows.push({type:'field', label:f.label, value:a.basic2[f.id]}));
+  LIFE_GROUPS.forEach(g => {
+    rows.push({type:'header', text:g.title});
+    g.items.forEach(f => rows.push({type:'field', label:f.label, value:a.life[f.id]}));
+  });
+  return rows;
+}
+
+async function exportExcel(){
+  const statusEl = document.getElementById('status');
+  const name = document.getElementById('a_name').value || '';
+  const home = document.getElementById('a_home').value || '';
+  const category = document.getElementById('a_category').value || '';
+  try{
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('課題分析シート');
+    ws.columns = [{ width: 40 }, { width: 80 }];
+
+    const addHeaderRow = (text) => {
+      const row = ws.addRow([text, '']);
+      ws.mergeCells(row.number, 1, row.number, 2);
+      const cell = row.getCell(1);
+      cell.font = { bold: true, color: { argb: 'FF6B4E1A' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFE7D6' } };
+      cell.border = {
+        top: { style: 'thin' }, left: { style: 'thin' },
+        bottom: { style: 'thin' }, right: { style: 'thin' }
+      };
+      row.height = 22;
+    };
+
+    const addFieldRow = (label, value) => {
+      const row = ws.addRow([label, value || '']);
+      row.height = 55;
+      const labelCell = row.getCell(1);
+      const valueCell = row.getCell(2);
+      labelCell.font = { bold: true };
+      labelCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4F1EA' } };
+      labelCell.alignment = { wrapText: true, vertical: 'top' };
+      valueCell.alignment = { wrapText: true, vertical: 'top' };
+      [labelCell, valueCell].forEach(cell => {
+        cell.border = {
+          top: { style: 'thin' }, left: { style: 'thin' },
+          bottom: { style: 'thin' }, right: { style: 'thin' }
+        };
+      });
+    };
+
+    addHeaderRow('基本情報');
+    addFieldRow('ホーム', home);
+    addFieldRow('氏名', name);
+    addFieldRow('区分', category);
+
+    addHeaderRow('基本情報（課題分析シート）');
+    const a = collectAssessment();
+    BASIC2_FIELDS.forEach(f => addFieldRow(f.label, a.basic2[f.id]));
+    LIFE_GROUPS.forEach(g => {
+      addHeaderRow(g.title);
+      g.items.forEach(f => addFieldRow(f.label, a.life[f.id]));
+    });
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = (name ? name + '_課題分析シート' : '課題分析シート') + '.xlsx';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    statusEl.textContent = "Excelファイルを出力しました";
+    statusEl.className = "status ok";
+  } catch(err){
+    statusEl.textContent = "Excel出力に失敗しました";
+    statusEl.className = "status err";
+  }
+}
+
+function renderPreviewItem(label, value){
+  const empty = !value;
+  return '<div class="preview-item"><div class="p-label">' + label + '</div><div class="p-value' + (empty ? ' empty' : '') + '">' + (empty ? '（未入力）' : value) + '</div></div>';
+}
+
+function showPreview(){
+  const name = document.getElementById('a_name').value || '';
+  const home = document.getElementById('a_home').value || '';
+  const category = document.getElementById('a_category').value || '';
+  const a = collectAssessment();
+
+  let html = '';
+  html += '<div class="preview-group">基本情報</div>';
+  html += renderPreviewItem('ホーム', home);
+  html += renderPreviewItem('氏名', name);
+  html += renderPreviewItem('区分', category);
+
+  html += '<div class="preview-group">基本情報（課題分析シート）</div>';
+  BASIC2_FIELDS.forEach(f => html += renderPreviewItem(f.label, a.basic2[f.id]));
+
+  LIFE_GROUPS.forEach(g => {
+    html += '<div class="preview-group">' + g.title + '</div>';
+    g.items.forEach(f => html += renderPreviewItem(f.label, a.life[f.id]));
+  });
+
+  document.getElementById('previewContent').innerHTML = html;
+  document.getElementById('inputRoot').style.display = 'none';
+  document.getElementById('previewView').style.display = 'block';
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function closePreview(){
+  document.getElementById('previewView').style.display = 'none';
+  document.getElementById('inputRoot').style.display = '';
+}
+
+function clearAllAssessmentFields(){
+  BASIC2_FIELDS.forEach(f => {
+    const el = document.getElementById(f.id);
+    if(el) el.value = '';
+  });
+  LIFE_GROUPS.forEach(g => {
+    g.items.forEach(f => {
+      const el = document.getElementById(f.id);
+      if(el) el.value = '';
+      if(f.hasText){
+        const note = document.getElementById(f.id + '_note');
+        if(note) note.value = '';
+      }
+    });
+  });
+}
+
+function applyField(f, rawValue){
+  const el = document.getElementById(f.id);
+  if(!el) return;
+  if(f.type === 'select'){
+    let selVal = rawValue || '';
+    let noteVal = '';
+    if(f.hasText && rawValue && rawValue.indexOf(' ／ ') >= 0){
+      const parts = rawValue.split(' ／ ');
+      if(f.options.indexOf(parts[0]) >= 0){
+        selVal = parts[0];
+        noteVal = parts.slice(1).join(' ／ ');
+      } else {
+        selVal = '';
+        noteVal = rawValue;
+      }
+    } else if(f.options.indexOf(rawValue) < 0){
+      selVal = '';
+      noteVal = rawValue || '';
+    }
+    el.value = selVal;
+    if(f.hasText){
+      const note = document.getElementById(f.id + '_note');
+      if(note) note.value = noteVal;
+    }
+  } else {
+    el.value = rawValue || '';
+  }
+}
+
+function getWebappUrl(){
+  return CONFIG.WEBAPP_URL;
+}
+
+function jsonpRequest(url){
+  return new Promise((resolve, reject) => {
+    const cbName = 'jsonp_cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+    const script = document.createElement('script');
+    let done = false;
+    window[cbName] = function(data){
+      done = true;
+      resolve(data);
+      cleanup();
+    };
+    function cleanup(){
+      delete window[cbName];
+      if(script.parentNode) script.parentNode.removeChild(script);
+    }
+    script.onerror = function(){
+      if(!done){ reject(new Error('jsonp failed')); cleanup(); }
+    };
+    script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + cbName;
+    document.body.appendChild(script);
+    setTimeout(() => { if(!done){ reject(new Error('jsonp timeout')); cleanup(); } }, 8000);
+  });
+}
+
+async function loadAssessmentData(name){
+  const statusEl = document.getElementById('status');
+  const url = getWebappUrl();
+  if(!url || !name){
+    clearAllAssessmentFields();
+    return;
+  }
+  statusEl.textContent = "前回の記録を確認中…";
+  statusEl.className = "status";
+  try{
+    const json = await jsonpRequest(url + '?mode=load_assessment&name=' + encodeURIComponent(name));
+    clearAllAssessmentFields();
+    if(json && json.found && json.rows){
+      const map = {};
+      json.rows.forEach(pair => { map[pair[0]] = pair[1]; });
+      BASIC2_FIELDS.forEach(f => {
+        if(map.hasOwnProperty(f.label)) applyField(f, map[f.label]);
+      });
+      LIFE_GROUPS.forEach(g => {
+        g.items.forEach(f => {
+          if(map.hasOwnProperty(f.label)) applyField(f, map[f.label]);
+        });
+      });
+      statusEl.textContent = "前回の課題分析シートの記録を読み込みました";
+      statusEl.className = "status ok";
+    } else {
+      statusEl.textContent = "この方の今月の課題分析シート記録はまだありません（新規入力）";
+      statusEl.className = "status";
+    }
+  } catch(err){
+    clearAllAssessmentFields();
+    statusEl.textContent = "前回の記録の読み込みに失敗しました。通信環境をご確認ください（このまま新規入力もできます）";
+    statusEl.className = "status err";
+  }
+}
+
+function saveData(){
+  const url = getWebappUrl();
+  const statusEl = document.getElementById('status');
+  const name = document.getElementById('a_name').value.trim();
+  if(!url){
+    statusEl.textContent = "保存先URLが未設定です（開発者に連絡してください）";
+    statusEl.className = "status err";
+    return;
+  }
+  if(!name){
+    statusEl.textContent = "氏名が未入力です（ICF入力アプリと同じ氏名を入力してください）";
+    statusEl.className = "status err";
+    return;
+  }
+  statusEl.textContent = "保存中…";
+  statusEl.className = "status";
+  const data = { mode: 'assessment', name: name, home: document.getElementById('a_home').value, category: document.getElementById('a_category').value, extraRows: buildExtraRows() };
+  fetch(url, {
+    method: "POST",
+    mode: "no-cors",
+    headers: {"Content-Type": "text/plain;charset=utf-8"},
+    body: JSON.stringify(data)
+  }).then(() => {
+    statusEl.textContent = "保存しました（" + new Date().toLocaleString('ja-JP') + "）";
+    statusEl.className = "status ok";
+  }).catch(() => {
+    statusEl.textContent = "保存に失敗しました。通信環境を確認してください";
+    statusEl.className = "status err";
+  });
+}
+</script>
+</body>
+</html>
