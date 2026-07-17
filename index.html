@@ -108,6 +108,22 @@
   .preview-item .p-label{font-size:13px; font-weight:700; color:var(--accent-deep); white-space:pre-line; margin-bottom:4px;}
   .preview-item .p-value{font-size:14.5px; white-space:pre-line; line-height:1.6; color:var(--ink);}
   .preview-item .p-value.empty{color:var(--ink-soft); font-style:italic;}
+
+  .draw-wrap{
+    position:relative; width:520px; max-width:100%; height:280px;
+    min-width:240px; min-height:190px;
+    resize:both; overflow:hidden;
+    border:1px solid var(--line); border-radius:10px;
+    background:#FDFCFE; touch-action:none;
+  }
+  .draw-wrap canvas{display:block; width:100%; height:100%; touch-action:none;}
+  .draw-toolbar{display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap;}
+  .draw-clear-btn{
+    border:1px solid var(--line); border-radius:8px; background:var(--accent-soft);
+    color:var(--accent-deep); font-size:12.5px; font-weight:700; padding:7px 12px; cursor:pointer;
+  }
+  .draw-hint{font-size:11.5px; color:var(--ink-soft);}
+  .p-draw-img{max-width:100%; border:1px solid var(--line); border-radius:8px; display:block;}
 </style>
 </head>
 <body>
@@ -286,7 +302,7 @@ const BASIC2_FIELDS = [
   {id:'b_uketsuke_taiou', label:'受付対応者', type:'text'},
   {id:'b_uketsuke_method', label:'受付方法', type:'select', options:['電話','来所','その他']},
   {id:'b_name_info', label:'氏名・性別・年齢／住所・電話番号', type:'textarea'},
-  {id:'b_family_status', label:'家族状況（ジェノグラム等の概要）', type:'textarea'},
+  {id:'b_family_status', label:'家族状況（ジェノグラム等の概要）', type:'canvas'},
   {id:'b_family_basic', label:'家族等の基本情報（氏名・年齢・住所・電話）', type:'textarea'},
   {id:'b_care_plan_status', label:'居宅サービス計画作成の状況', type:'select', options:['初回','初回以外']},
   {id:'b_life_history', label:'これまでの生活と現在の生活状況', type:'textarea'},
@@ -401,11 +417,120 @@ function renderField(f){
     if(f.hasText){
       html += '<textarea class="sub-note" id="' + f.id + '_note" placeholder="補足・具体的な状況を入力"></textarea>';
     }
+  } else if(f.type === 'canvas'){
+    html += '<div class="draw-wrap" id="' + f.id + '_wrap"><canvas id="' + f.id + '_canvas"></canvas></div>';
+    html += '<div class="draw-toolbar">';
+    html += '<button type="button" class="draw-clear-btn" onclick="clearCanvas(\'' + f.id + '\')">🗑 消去</button>';
+    html += '<span class="draw-hint">指やマウスで手書きできます／枠の右下をドラッグすると広げられます</span>';
+    html += '</div>';
   } else {
     html += '<textarea id="' + f.id + '" placeholder="入力してください"></textarea>';
   }
   html += '</div>';
   return html;
+}
+
+const canvasHasContent = {};
+
+function initCanvasField(id){
+  const wrap = document.getElementById(id + '_wrap');
+  const canvas = document.getElementById(id + '_canvas');
+  if(!wrap || !canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  function resizeCanvas(preserve){
+    const rect = wrap.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const newW = Math.max(1, Math.round(rect.width * dpr));
+    const newH = Math.max(1, Math.round(rect.height * dpr));
+    if(canvas.width === newW && canvas.height === newH) return;
+    let prevImg = null;
+    if(preserve && canvas.width > 0 && canvas.height > 0){
+      prevImg = document.createElement('canvas');
+      prevImg.width = canvas.width;
+      prevImg.height = canvas.height;
+      prevImg.getContext('2d').drawImage(canvas, 0, 0);
+    }
+    canvas.width = newW;
+    canvas.height = newH;
+    ctx.fillStyle = '#FDFCFE';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#3E2D5C';
+    ctx.lineWidth = 2.5 * dpr;
+    if(prevImg){
+      ctx.drawImage(prevImg, 0, 0, prevImg.width, prevImg.height, 0, 0, canvas.width, canvas.height);
+    }
+  }
+  resizeCanvas(false);
+  requestAnimationFrame(() => resizeCanvas(true));
+
+  if(window.ResizeObserver){
+    new ResizeObserver(() => resizeCanvas(true)).observe(wrap);
+  } else {
+    window.addEventListener('resize', () => resizeCanvas(true));
+  }
+
+  let drawing = false, lastX = 0, lastY = 0;
+  function pos(e){
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    return { x: (e.clientX - rect.left) * dpr, y: (e.clientY - rect.top) * dpr };
+  }
+  canvas.addEventListener('pointerdown', e => {
+    drawing = true;
+    canvasHasContent[id] = true;
+    canvas.setPointerCapture(e.pointerId);
+    const p = pos(e);
+    lastX = p.x; lastY = p.y;
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, ctx.lineWidth / 2, 0, Math.PI * 2);
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.fill();
+  });
+  canvas.addEventListener('pointermove', e => {
+    if(!drawing) return;
+    const p = pos(e);
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    lastX = p.x; lastY = p.y;
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach(ev =>
+    canvas.addEventListener(ev, () => { drawing = false; })
+  );
+}
+
+function clearCanvas(id){
+  const canvas = document.getElementById(id + '_canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#FDFCFE';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  canvasHasContent[id] = false;
+}
+
+function getCanvasValue(id){
+  if(!canvasHasContent[id]) return '';
+  const canvas = document.getElementById(id + '_canvas');
+  if(!canvas) return '';
+  try { return canvas.toDataURL('image/png'); } catch(e){ return ''; }
+}
+
+function loadCanvasValue(id, dataUrl){
+  const canvas = document.getElementById(id + '_canvas');
+  if(!canvas || !dataUrl || dataUrl.indexOf('data:image') !== 0) return;
+  const img = new Image();
+  img.onload = () => {
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FDFCFE';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvasHasContent[id] = true;
+  };
+  img.src = dataUrl;
 }
 
 function renderAssessment(){
@@ -419,13 +544,16 @@ function renderAssessment(){
     html += g.items.map(renderField).join('');
   });
   lifeEl.innerHTML = html;
+
+  BASIC2_FIELDS.forEach(f => { if(f.type === 'canvas') initCanvasField(f.id); });
+  LIFE_GROUPS.forEach(g => g.items.forEach(f => { if(f.type === 'canvas') initCanvasField(f.id); }));
 }
 renderAssessment();
 
 function collectAssessment(){
   const basic2 = {};
   BASIC2_FIELDS.forEach(f => {
-    basic2[f.id] = document.getElementById(f.id).value || '';
+    basic2[f.id] = f.type === 'canvas' ? getCanvasValue(f.id) : (document.getElementById(f.id).value || '');
   });
   const life = {};
   LIFE_GROUPS.forEach(g => {
@@ -498,9 +626,32 @@ async function exportExcel(){
     addFieldRow('氏名', name);
     addFieldRow('区分', category);
 
+    const addImageFieldRow = (label, dataUrl) => {
+      const row = ws.addRow([label, '']);
+      row.height = 140;
+      const labelCell = row.getCell(1);
+      labelCell.font = { bold: true };
+      labelCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4F1EA' } };
+      labelCell.alignment = { wrapText: true, vertical: 'top' };
+      [labelCell, row.getCell(2)].forEach(cell => {
+        cell.border = {
+          top: { style: 'thin' }, left: { style: 'thin' },
+          bottom: { style: 'thin' }, right: { style: 'thin' }
+        };
+      });
+      if(dataUrl){
+        const isJpeg = dataUrl.indexOf('data:image/jpeg') === 0;
+        const imageId = wb.addImage({ base64: dataUrl, extension: isJpeg ? 'jpeg' : 'png' });
+        ws.addImage(imageId, { tl: { col: 1, row: row.number - 1 }, ext: { width: 400, height: 180 } });
+      }
+    };
+
     addHeaderRow('基本情報（課題分析シート）');
     const a = collectAssessment();
-    BASIC2_FIELDS.forEach(f => addFieldRow(f.label, a.basic2[f.id]));
+    BASIC2_FIELDS.forEach(f => {
+      if(f.type === 'canvas'){ addImageFieldRow(f.label, a.basic2[f.id]); }
+      else { addFieldRow(f.label, a.basic2[f.id]); }
+    });
     LIFE_GROUPS.forEach(g => {
       addHeaderRow(g.title);
       g.items.forEach(f => addFieldRow(f.label, a.life[f.id]));
@@ -529,6 +680,13 @@ function renderPreviewItem(label, value){
   return '<div class="preview-item"><div class="p-label">' + label + '</div><div class="p-value' + (empty ? ' empty' : '') + '">' + (empty ? '（未入力）' : value) + '</div></div>';
 }
 
+function renderPreviewImage(label, dataUrl){
+  if(!dataUrl){
+    return '<div class="preview-item"><div class="p-label">' + label + '</div><div class="p-value empty">（未入力）</div></div>';
+  }
+  return '<div class="preview-item"><div class="p-label">' + label + '</div><img class="p-draw-img" src="' + dataUrl + '"></div>';
+}
+
 function showPreview(){
   const name = document.getElementById('a_name').value || '';
   const home = document.getElementById('a_home').value || '';
@@ -542,7 +700,9 @@ function showPreview(){
   html += renderPreviewItem('区分', category);
 
   html += '<div class="preview-group">基本情報（課題分析シート）</div>';
-  BASIC2_FIELDS.forEach(f => html += renderPreviewItem(f.label, a.basic2[f.id]));
+  BASIC2_FIELDS.forEach(f => {
+    html += f.type === 'canvas' ? renderPreviewImage(f.label, a.basic2[f.id]) : renderPreviewItem(f.label, a.basic2[f.id]);
+  });
 
   LIFE_GROUPS.forEach(g => {
     html += '<div class="preview-group">' + g.title + '</div>';
@@ -562,6 +722,7 @@ function closePreview(){
 
 function clearAllAssessmentFields(){
   BASIC2_FIELDS.forEach(f => {
+    if(f.type === 'canvas'){ clearCanvas(f.id); return; }
     const el = document.getElementById(f.id);
     if(el) el.value = '';
   });
@@ -578,6 +739,10 @@ function clearAllAssessmentFields(){
 }
 
 function applyField(f, rawValue){
+  if(f.type === 'canvas'){
+    loadCanvasValue(f.id, rawValue);
+    return;
+  }
   const el = document.getElementById(f.id);
   if(!el) return;
   if(f.type === 'select'){
