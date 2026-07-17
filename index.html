@@ -112,11 +112,20 @@
   .draw-wrap{
     position:relative; width:520px; max-width:100%; height:280px;
     min-width:240px; min-height:190px;
-    resize:both; overflow:hidden;
+    overflow:hidden;
     border:1px solid var(--line); border-radius:10px;
-    background:#FDFCFE; touch-action:none;
+    background:#FDFCFE;
   }
   .draw-wrap canvas{display:block; width:100%; height:100%; touch-action:none;}
+  .draw-resize-handle{
+    position:absolute; right:0; bottom:0; width:26px; height:26px;
+    cursor:nwse-resize; touch-action:none; z-index:5;
+    background:
+      linear-gradient(135deg, transparent 0 45%, var(--accent) 45% 55%, transparent 55% 100%),
+      linear-gradient(135deg, transparent 0 65%, var(--accent) 65% 75%, transparent 75% 100%);
+    opacity:.55;
+  }
+  .draw-resize-handle:hover, .draw-resize-handle:active{opacity:.9;}
   .draw-toolbar{display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap;}
   .draw-clear-btn{
     border:1px solid var(--line); border-radius:8px; background:var(--accent-soft);
@@ -418,7 +427,8 @@ function renderField(f){
       html += '<textarea class="sub-note" id="' + f.id + '_note" placeholder="補足・具体的な状況を入力"></textarea>';
     }
   } else if(f.type === 'canvas'){
-    html += '<div class="draw-wrap" id="' + f.id + '_wrap"><canvas id="' + f.id + '_canvas"></canvas></div>';
+    html += '<div class="draw-wrap" id="' + f.id + '_wrap"><canvas id="' + f.id + '_canvas"></canvas>' +
+            '<div class="draw-resize-handle" id="' + f.id + '_handle"></div></div>';
     html += '<div class="draw-toolbar">';
     html += '<button type="button" class="draw-clear-btn" onclick="clearCanvas(\'' + f.id + '\')">🗑 消去</button>';
     html += '<span class="draw-hint">指やマウスで手書きできます／枠の右下をドラッグすると広げられます</span>';
@@ -501,6 +511,35 @@ function initCanvasField(id){
   ['pointerup','pointercancel','pointerleave'].forEach(ev =>
     canvas.addEventListener(ev, () => { drawing = false; })
   );
+
+  const handle = document.getElementById(id + '_handle');
+  if(handle){
+    let resizing = false, startX = 0, startY = 0, startW = 0, startH = 0;
+    handle.addEventListener('pointerdown', e => {
+      resizing = true;
+      startX = e.clientX; startY = e.clientY;
+      const rect = wrap.getBoundingClientRect();
+      startW = rect.width; startH = rect.height;
+      try { handle.setPointerCapture(e.pointerId); } catch(err){}
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    handle.addEventListener('pointermove', e => {
+      if(!resizing) return;
+      const minW = 240, minH = 190;
+      const newW = Math.max(minW, startW + (e.clientX - startX));
+      const newH = Math.max(minH, startH + (e.clientY - startY));
+      wrap.style.width = newW + 'px';
+      wrap.style.height = newH + 'px';
+      resizeCanvas(true);
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    ['pointerup','pointercancel'].forEach(ev => handle.addEventListener(ev, e => {
+      resizing = false;
+      e.stopPropagation();
+    }));
+  }
 }
 
 function clearCanvas(id){
