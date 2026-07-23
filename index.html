@@ -433,7 +433,7 @@ function renderField(f){
             '<div class="draw-resize-handle" id="' + f.id + '_handle"></div></div>';
     html += '<div class="draw-toolbar">';
     html += '<button type="button" class="draw-clear-btn" onclick="clearCanvas(\'' + f.id + '\')">🗑 消去</button>';
-    html += '<label class="draw-shape-toggle"><input type="checkbox" id="' + f.id + '_shapeAssist" checked>○△□◇をきれいな図形に整形</label>';
+    html += '<label class="draw-shape-toggle"><input type="checkbox" id="' + f.id + '_shapeAssist" checked>○△□◇や線をきれいに整形</label>';
     html += '<span class="draw-hint">指やマウスで手書きできます／枠の右下をドラッグすると広げられます</span>';
     html += '</div>';
   } else {
@@ -471,7 +471,7 @@ function rdpSimplify(points, epsilon){
 }
 
 function classifyStroke(points, dpr){
-  if(points.length < 10) return null;
+  if(points.length < 4) return null;
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   points.forEach(p => {
     if(p.x < minX) minX = p.x;
@@ -480,11 +480,24 @@ function classifyStroke(points, dpr){
     if(p.y > maxY) maxY = p.y;
   });
   const w = maxX - minX, h = maxY - minY;
-  if(w < 16 * dpr || h < 16 * dpr) return null;
 
   const first = points[0], last = points[points.length - 1];
   const closeDist = Math.hypot(last.x - first.x, last.y - first.y);
-  if(closeDist > 0.35 * Math.max(w, h)) return null;
+  const isClosed = closeDist <= 0.35 * Math.max(w, h, 1);
+
+  if(!isClosed){
+    if(closeDist < 24 * dpr) return null;
+    let maxDev = 0;
+    const dx = last.x - first.x, dy = last.y - first.y;
+    points.forEach(p => {
+      const d = Math.abs((p.x - first.x) * dy - (p.y - first.y) * dx) / closeDist;
+      if(d > maxDev) maxDev = d;
+    });
+    if(maxDev > 0.07 * closeDist) return null;
+    return { type: 'line', x1: first.x, y1: first.y, x2: last.x, y2: last.y };
+  }
+
+  if(w < 16 * dpr || h < 16 * dpr) return null;
 
   const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
   const rx = w / 2, ry = h / 2;
@@ -616,6 +629,11 @@ function initCanvasField(id){
           ]);
         } else if(shape.type === 'triangle' || shape.type === 'polygon'){
           drawPolygon(shape.points);
+        } else if(shape.type === 'line'){
+          ctx.beginPath();
+          ctx.moveTo(shape.x1, shape.y1);
+          ctx.lineTo(shape.x2, shape.y2);
+          ctx.stroke();
         }
       }
     }
